@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EastMallBuy Katalógus Admin / Setup</title>
+    <meta
+      name="description"
+      content="Setup, admin útmutató és diagnosztika az EastMallBuy statikus affiliate katalógushoz."
+    />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <script type="importmap">
+      {
+        "imports": {
+          "./assets/js/app-version.js": "./assets/js/app-version.js?v=2026-04-23-02",
+          "./assets/js/cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-02"
+        },
+        "scopes": {
+          "./assets/js/": {
+            "./app-version.js": "./assets/js/app-version.js?v=2026-04-23-02",
+            "./cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-02"
+          }
+        }
+      }
+    </script>
+    <script type="module">
+      import { appendVersion } from "./assets/js/cache-utils.js";
+      const favicon = document.createElement("link");
+      favicon.rel = "icon";
+      favicon.type = "image/svg+xml";
+      favicon.href = appendVersion("assets/favicon.svg");
+      document.head.append(favicon);
+    </script>
+    <script type="module">
+      import { loadVersionedStylesheet } from "./assets/js/cache-utils.js";
+      loadVersionedStylesheet("assets/css/style.css");
+    </script>
+  </head>
+  <body data-page="admin">
+    <header class="admin-hero">
+      <div class="admin-hero__inner">
+        <p class="eyebrow">Admin / setup</p>
+        <h1>EastMallBuy katalógus kezelői útmutató</h1>
+        <p>
+          Naprakész diagnosztikai oldal a manifest alapú JSON katalógushoz, multi-category
+          tagekhez, affiliate linkekhez és cache-biztos frissítésekhez.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="index.html">Publikus katalógus megnyitása</a>
+          <a class="btn btn--light" href="#admin-tools">Diagnosztikai eszközök</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell admin-shell">
+      <section class="docs admin-docs">
+        <article>
+          <h2>Alkalmazás áttekintése</h2>
+          <p>
+            Az app frontend-only EastMallBuy affiliate katalógus. A publikus oldal a manifestben
+            felsorolt JSON exportokat tölti be, normalizálja, deduplikálja, majd kereshető és
+            szűrhető termékkártyákat renderel.
+          </p>
+          <p>
+            Folyamat: <code>manifest.json</code> → dataset JSON → normalizálás →
+            multi-tag kategorizálás és márka felismerés → deduplikáció → szűrés/rendezés →
+            affiliate linkes kártyák.
+          </p>
+        </article>
+
+        <article>
+          <h2>Első beüzemelés</h2>
+          <p>
+            HTTP-n keresztül futtasd. XAMPP esetén: <code>c:\xampp\htdocs\embimport</code>,
+            majd <code>http://localhost/embimport/</code>. Python szerverrel:
+            <code>python -m http.server</code>.
+          </p>
+          <p>
+            A <code>file://</code> mód nem megbízható, mert a böngésző blokkolhatja a
+            <code>fetch()</code> alapú manifest és JSON betöltést.
+          </p>
+        </article>
+
+        <article>
+          <h2>Manifest / JSON kezelés</h2>
+          <p>
+            A <code>data/manifest.json</code> <code>datasets</code> tömbje mondja meg, mely
+            exportokat kell betölteni. A <code>category</code> és <code>label</code> a dataset
+            azonosítását segíti, a terméktageket a title alapú felismerés is bővíti.
+          </p>
+          <p>
+            A manifest kategória manuális hozzárendelésként elsőbbséget kap, az automatikus
+            kategóriák pedig deduplikált kiegészítő címkeként jelennek meg. A publikus oldalon a
+            főkategória szűrő csak a manifestből dolgozik, az automatikus kategória szűrő pedig
+            kizárólag a title alapú felismerést használja.
+          </p>
+          <pre><code>{
+  "datasets": [
+    {
+      "path": "data/cipo/ohero-export.json",
+      "category": "Cipő",
+      "label": "Cipő / OHERO STUDIO"
+    }
+  ]
+}</code></pre>
+          <pre><code>{
+  "items": [
+    {
+      "itemId": "123",
+      "title": "Outdoor running shoes",
+      "price": 12.5,
+      "url": "https://eastmallbuy.com/index/item/index.html?tp=micro&amp;tid=123",
+      "affiliateUrl": "https://eastmallbuy.com/index/item/index.html?tp=micro&amp;tid=123&amp;inviter=gelenfarkas",
+      "sellerName": "OHERO STUDIO"
+    }
+  ]
+}</code></pre>
+        </article>
+
+        <article>
+          <h2>Kategorizálás</h2>
+          <p>
+            A <code>CATEGORY_MAP</code> HU, EN és CN kulcsszavakat tartalmaz. A
+            <code>detectCategories(title)</code> token- és kontextusalapú egyezésekkel dolgozik,
+            hogy a rövid vagy túl általános kulcsszavak kevesebb fals pozitív találatot adjanak.
+          </p>
+          <p>
+            A legjobb találat a primary kategória: <code>product.category</code>,
+            <code>product.categoryId</code> és <code>product.categoryLabel</code>. Az összes tag a
+            <code>product.categories</code> tömbben van, külön normalizált
+            <code>manualCategoryNormalized</code> és <code>autoCategoriesNormalized</code> mezőkkel.
+          </p>
+        </article>
+
+        <article>
+          <h2>Multi-tag rendszer</h2>
+          <p>
+            Egy termék több kategóriába tartozhat. Például egy outdoor futócipő egyszerre lehet
+            <code>Cipő</code>, <code>Sport</code> és <code>Outdoor</code>.
+          </p>
+          <p>
+            A kategóriaszűrés a <code>product.categories.includes(selectedCategory)</code>
+            logikát használja, ezért másodlagos tag alatt is megjelenik a termék.
+          </p>
+        </article>
+
+        <article>
+          <h2>Márka felismerés</h2>
+          <p>
+            A <code>BRAND_MAP</code> title alapján, offline kulcsszavakkal és óvatos aliasokkal
+            dolgozik. Rövid jelölések, például <code>NK</code>, <code>AD</code> és <code>ON</code>
+            csak tokenként vagy kontextussal számítanak találatnak.
+          </p>
+          <p>
+            A termékeken a <code>product.brands</code> tömb és a <code>product.primaryBrand</code>
+            mező jelenik meg. A publikus márkaszűrő csak olyan márkát mutat, amelyhez van legalább
+            egy felismert termék.
+          </p>
+        </article>
+
+        <article>
+          <h2>Keresés</h2>
+          <p>
+            A kereső normalizált szöveget használ: cím, TID, seller, forrás, dataset label és
+            kategóriatag, valamint felismert márka is bekerül a keresési indexbe. Kategória jellegű
+            keresésnél a kapcsolódó HU, EN és CN kulcsszavak is segítik a találatot.
+          </p>
+        </article>
+
+        <article>
+          <h2>Affiliate linkek</h2>
+          <p>
+            A publikus kártyák affiliate URL-t használnak. Ha van <code>affiliateUrl</code>, az
+            kerül ki; ha nincs, az app generál linket az <code>itemId</code>, <code>tp</code> és
+            <code>inviter</code> alapján.
+          </p>
+          <p>
+            A <code>Link másolása</code> gomb ugyanazt az affiliate linket másolja. Fallbackként
+            generált affiliate linket vagy eredeti termék URL-t használ.
+          </p>
+        </article>
+
+        <article>
+          <h2>Cache / frissítés</h2>
+          <p>
+            A projekt tudatosan nem használ kliensoldali cache-t. A központi verzióforrás az
+            <code>assets/js/app-version.js</code>, és minden kritikus erőforrás verziózott URL-t
+            kap: bootstrap JS, CSS, fő app JS, favicon, manifest és dataset JSON.
+          </p>
+          <p>
+            Az Apache konfiguráció és a PHP fallback <code>no-store</code> headereket küld. Nincs
+            service worker, PWA cache, localStorage/sessionStorage alapú JSON cache, polling vagy
+            auto-refresh. Új deploy után azonnali frissülés a cél, Chrome-ban is.
+          </p>
+        </article>
+
+        <article>
+          <h2>Hibakeresés</h2>
+          <ul>
+            <li>HTTP-n fut az oldal, nem <code>file://</code> alatt.</li>
+            <li>A <code>data/manifest.json?v=...</code> elérhető és valid JSON.</li>
+            <li>A manifest <code>path</code> mezői létező dataset fájlokra mutatnak.</li>
+            <li>A dataset tartalmaz <code>items</code> tömböt.</li>
+            <li>Új deploy után változott az <code>APP_VERSION</code>.</li>
+            <li>Chrome DevTools Network fülön friss <code>?v=</code> értékek látszanak.</li>
+            <li>A <code>cache-utils.js</code> és <code>app-version.js</code> is verziózott URL-ről tölt.</li>
+            <li>A debug panel nem mutat fetch, parse vagy normalizálási hibát.</li>
+          </ul>
+        </article>
+
+        <article>
+          <h2>Deploy / frissítés</h2>
+          <ul class="checklist">
+            <li>Emeld az <code>APP_VERSION</code> értékét.</li>
+            <li>Töltsd fel a HTML, JS, CSS, JSON, SVG és PHP fájlokat.</li>
+            <li>Ellenőrizd az admin debug panelt.</li>
+            <li>Nézd meg, hogy a publikus oldal friss verziós asseteket tölt.</li>
+            <li>Normál Chrome reload után is az új buildnek kell megjelennie.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="admin-tools" class="toolbar" aria-label="Admin műveletek">
+        <div>
+          <p class="eyebrow">Technikai eszközök</p>
+          <h2>Betöltés, kézi import és diagnosztika</h2>
+          <p>
+            Ezek a kontrollok csak az admin oldalon vannak. A publikus katalógusban nem jelennek
+            meg fájlfeltöltő vagy debug elemek.
+          </p>
+        </div>
+        <div class="load-actions">
+          <button id="loadManifestBtn" class="btn btn--primary" type="button">Manifest újratöltése</button>
+          <label class="file-button">
+            Több JSON kiválasztása
+            <input id="fileInput" type="file" accept=".json,application/json" multiple />
+          </label>
+          <label class="file-button" id="directoryLabel">
+            Mappa importálása
+            <input id="directoryInput" type="file" accept=".json,application/json" webkitdirectory multiple />
+          </label>
+        </div>
+      </section>
+
+      <section id="status" class="notice notice--info" role="status">
+        Admin diagnosztika betöltése folyamatban...
+      </section>
+
+      <details id="debugPanel" class="debug-panel" open>
+        <summary>
+          <span>Betöltési debug</span>
+          <button id="runDiagnosticsBtn" class="btn btn--small" type="button">
+            Betöltési diagnosztika futtatása
+          </button>
+          <button id="copyDebugBtn" class="btn btn--small" type="button">Debug másolása</button>
+        </summary>
+        <div id="debugContent" class="debug-content">
+          A debug információk az első betöltés után jelennek meg.
+        </div>
+      </details>
+
+      <section class="datasets">
+        <div class="section-title">
+          <p class="eyebrow">Betöltött fájlok</p>
+          <h2>Dataset lista</h2>
+        </div>
+        <div id="datasetList" class="dataset-list"></div>
+      </section>
+
+      <section class="catalog admin-preview" id="products" aria-label="Admin előnézet">
+        <div class="results-head">
+          <div>
+            <p class="eyebrow">Előnézet</p>
+            <h2 id="resultCount">0 termék</h2>
+          </div>
+          <div class="stats">
+            <span id="datasetCount">0 dataset</span>
+            <span id="duplicateCount">0 duplikáció</span>
+          </div>
+        </div>
+        <div id="categoryNav" class="category-nav" aria-label="Kategória böngészés"></div>
+        <div id="productGrid" class="product-grid"></div>
+        <div id="emptyState" class="empty" hidden>Nincs betöltött előnézet.</div>
+      </section>
+    </main>
+
+    <template id="productCardTemplate">
+      <article class="product-card">
+        <a class="product-image affiliate-link" target="_blank" rel="noopener noreferrer">
+          <img alt="" loading="lazy" />
+        </a>
+        <div class="product-body">
+          <div class="badges"></div>
+          <h3></h3>
+          <div class="price"></div>
+          <dl class="meta"></dl>
+          <div class="card-actions">
+            <a class="btn btn--primary affiliate-link" target="_blank" rel="noopener noreferrer">
+              Termék megnyitása
+            </a>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script type="module">
+      import { appendVersion } from "./assets/js/cache-utils.js";
+      import(appendVersion("./assets/js/admin-app.js"));
+    </script>
+  </body>
+</html>

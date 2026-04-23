@@ -1,0 +1,9 @@
+{
+  "datasets": [
+    {
+      "path": "data/cipo/shop-1.json",
+      "category": "Cipő"
+    }
+    
+  ]
+}
