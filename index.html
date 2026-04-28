@@ -14,21 +14,21 @@
     <script type="importmap">
       {
         "imports": {
-          "./assets/js/app-version.js": "./assets/js/app-version.js?v=2026-04-23-03",
-          "./assets/js/cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-03"
+          "./assets/js/app-version.js": "./assets/js/app-version.js?v=20260428-03",
+          "./assets/js/cache-utils.js": "./assets/js/cache-utils.js?v=20260428-03"
         },
         "scopes": {
           "./assets/js/": {
-            "./app-version.js": "./assets/js/app-version.js?v=2026-04-23-03",
-            "./cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-03"
+            "./app-version.js": "./assets/js/app-version.js?v=20260428-03",
+            "./cache-utils.js": "./assets/js/cache-utils.js?v=20260428-03"
           }
         }
       }
     </script>
     <script type="module">
       import { appendVersion } from "./assets/js/cache-utils.js";
-      const { runServiceWorkerCleanup } = await import(appendVersion("./assets/js/sw-cleanup.js"));
-      await runServiceWorkerCleanup("public");
+      const { runCacheCleanup } = await import(appendVersion("./assets/js/cache-cleanup.js"));
+      window.__CACHE_CLEANUP_SUMMARY__ = await runCacheCleanup("public");
     </script>
     <script type="module">
       import { appendVersion } from "./assets/js/cache-utils.js";
@@ -114,34 +114,29 @@
 
           <label>
             Keresés
-            <input id="searchInput" type="search" placeholder="Cím, TID vagy bolt" />
+            <input id="searchInput" type="search" placeholder="Keresés terméknévre, márkára, kategóriára..." />
           </label>
+          <div class="search-actions" aria-label="Keresés műveletek">
+            <button id="searchSubmitBtn" class="btn btn--primary btn--small" type="button">Keresés</button>
+            <button id="searchClearBtn" class="btn btn--ghost btn--small" type="button">Törlés</button>
+          </div>
 
           <div class="search-help" aria-label="Keresési útmutató">
             <strong>Keresési tippek</strong>
             <ul>
-              <li>Keress konkrét névre, modellre, TID-re vagy kulcsszóra.</li>
-              <li>Szűkíts először fő kategóriára, majd finomíts automatikus kategóriával vagy márkával.</li>
+              <li>Írd be a keresést, majd nyomd meg a Keresés gombot vagy az Entert.</li>
+              <li>Szűkíts automatikus kategóriával vagy márkával, majd finomíts ár és bolt alapján.</li>
               <li>Ha nincs találat, próbálj angol kulcsszót is, például <span>watch</span>, <span>belt</span> vagy <span>wallet</span>.</li>
               <li>A felismerés offline, kulcsszó alapú, ezért nem minden termék kap automatikus címkét.</li>
             </ul>
           </div>
 
           <label>
-            Főkategória
-            <select id="mainCategoryFilter">
-              <option value="">Összes fő kategória</option>
-            </select>
-            <small class="helper-text">Ez a szűrő a kézzel megadott fő kategóriákat használja.</small>
-          </label>
-
-          <label>
             Automatikus kategória
             <select id="autoCategoryFilter">
               <option value="">Összes automatikus kategória</option>
             </select>
-            <small class="helper-text">Ez a szűrő a termék nevéből automatikusan felismert kategóriákat használja.</small>
-            <small class="helper-text">A rendszer nem minden terméknél ismeri fel pontosan az automatikus kategóriát.</small>
+            <small class="helper-text">A rendszer a termék nevéből próbálja felismerni. Nem minden terméknél tökéletes.</small>
           </label>
 
           <label>
@@ -183,6 +178,14 @@
             </select>
           </label>
 
+          <label class="filter-secondary">
+            Manuális kategória
+            <select id="mainCategoryFilter">
+              <option value="">Összes manuális kategória</option>
+            </select>
+            <small class="helper-text">Ez a JSON fájlhoz rendelt kézi kategória. Itt is lehetnek pontatlan besorolások.</small>
+          </label>
+
           <div id="activeFilters" class="chips" aria-label="Aktív szűrők"></div>
         </aside>
 
@@ -198,7 +201,9 @@
             </div>
           </div>
 
-          <div id="categoryNav" class="category-nav" aria-label="Kategória böngészés"></div>
+          <div id="loadingStatus" class="loading-status" role="status" aria-live="polite" hidden>
+            Termékek betöltése... Ez néhány másodpercet igénybe vehet, mert több ezer terméket készítünk elő a szűréshez.
+          </div>
           <div id="productGrid" class="product-grid"></div>
           <div class="load-more">
             <div class="load-more-status" aria-live="polite">
@@ -211,7 +216,7 @@
             </button>
           </div>
           <div id="emptyState" class="empty" hidden>
-            Nincs találat ezekkel a szűrőkkel. Próbálj meg kevesebb feltételt megadni.
+            Nincs találat. Próbálj másik kulcsszót, márkát vagy kategóriát.
           </div>
         </section>
       </section>
@@ -263,7 +268,7 @@
           <img alt="" loading="lazy" />
         </a>
         <div class="product-body">
-          <div class="badges"></div>
+          <div class="badges product-badges"></div>
           <h3></h3>
           <div class="price"></div>
           <dl class="meta"></dl>

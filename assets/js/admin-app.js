@@ -83,6 +83,7 @@ async function loadManifest(mode) {
       page: "admin",
       appScriptUrl: import.meta.url,
       manifestUrl: catalog.debug?.manifest?.fetchUrl || appendVersion("data/manifest.json"),
+      cleanup: window.__CACHE_CLEANUP_SUMMARY__ || null,
     });
     showStatus(
       elements.status,

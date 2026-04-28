@@ -196,25 +196,8 @@ function productMatches(product, filters) {
   if (query) {
     const queryCategory = findCategoryByQuery(query);
     const queryTerms = expandSearchQuery(filters.query);
-    const haystack =
-      product.searchText ||
-      [
-        product.title,
-        product.itemId,
-        product.sellerName,
-        product.source,
-        product.manualCategory,
-        ...(product.manualCategories || []),
-        product.primaryBrand,
-        ...(product.brands || []),
-        ...(product.autoCategories || []),
-        ...(product.allCategories || product.categories || []),
-        ...(product.datasetLabels || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-    const normalizedHaystack = normalizeSearchText(haystack);
-    const matchesText = queryTerms.some((term) => normalizedHaystack.includes(term));
+    const searchIndex = product.searchIndex || normalizeSearchText([product.title, product.itemId, product.sellerName].join(" "));
+    const matchesText = queryTerms.some((term) => searchIndex.includes(term));
     const matchesCategory =
       queryCategory &&
       (product.categoryId === queryCategory.id ||

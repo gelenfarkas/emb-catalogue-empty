@@ -14,21 +14,21 @@
     <script type="importmap">
       {
         "imports": {
-          "./assets/js/app-version.js": "./assets/js/app-version.js?v=2026-04-23-03",
-          "./assets/js/cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-03"
+          "./assets/js/app-version.js": "./assets/js/app-version.js?v=20260428-03",
+          "./assets/js/cache-utils.js": "./assets/js/cache-utils.js?v=20260428-03"
         },
         "scopes": {
           "./assets/js/": {
-            "./app-version.js": "./assets/js/app-version.js?v=2026-04-23-03",
-            "./cache-utils.js": "./assets/js/cache-utils.js?v=2026-04-23-03"
+            "./app-version.js": "./assets/js/app-version.js?v=20260428-03",
+            "./cache-utils.js": "./assets/js/cache-utils.js?v=20260428-03"
           }
         }
       }
     </script>
     <script type="module">
       import { appendVersion } from "./assets/js/cache-utils.js";
-      const { runServiceWorkerCleanup } = await import(appendVersion("./assets/js/sw-cleanup.js"));
-      await runServiceWorkerCleanup("admin");
+      const { runCacheCleanup } = await import(appendVersion("./assets/js/cache-cleanup.js"));
+      window.__CACHE_CLEANUP_SUMMARY__ = await runCacheCleanup("admin");
     </script>
     <script type="module">
       import { appendVersion } from "./assets/js/cache-utils.js";
@@ -98,7 +98,7 @@
           <p>
             A manifest kategória manuális hozzárendelésként elsőbbséget kap, az automatikus
             kategóriák pedig deduplikált kiegészítő címkeként jelennek meg. A publikus oldalon a
-            főkategória szűrő csak a manifestből dolgozik, az automatikus kategória szűrő pedig
+            manuális kategória szűrő csak a manifestből dolgozik, az automatikus kategória szűrő pedig
             kizárólag a title alapú felismerést használja.
           </p>
           <pre><code>{
@@ -130,6 +130,9 @@
             A <code>CATEGORY_MAP</code> HU, EN és CN kulcsszavakat tartalmaz. A
             <code>detectCategories(title)</code> token- és kontextusalapú egyezésekkel dolgozik,
             hogy a rövid vagy túl általános kulcsszavak kevesebb fals pozitív találatot adjanak.
+            Az EastMallBuy rövidített angol címkéihez külön automatikus tagek vannak, például
+            <code>Napszemüveg</code>, <code>Ékszer</code>, <code>Gyerekruha</code>,
+            <code>Mez</code> és <code>Szett / Ruhaszett</code>.
           </p>
           <p>
             A legjobb találat a primary kategória: <code>product.category</code>,
@@ -156,7 +159,9 @@
           <p>
             A <code>BRAND_MAP</code> title alapján, offline kulcsszavakkal és óvatos aliasokkal
             dolgozik. Rövid jelölések, például <code>NK</code>, <code>AD</code> és <code>ON</code>
-            csak tokenként vagy kontextussal számítanak találatnak.
+            csak tokenként vagy kontextussal számítanak találatnak. A maszkolt aliasok, például
+            <code>SUPREM*</code>, <code>LOUI* VUITTO*</code> és <code>RALP* LAURE*</code>
+            normalizált token-szekvenciaként egyeznek, nem laza substring alapján.
           </p>
           <p>
             A termékeken a <code>product.brands</code> tömb és a <code>product.primaryBrand</code>
@@ -302,7 +307,7 @@
           <img alt="" loading="lazy" />
         </a>
         <div class="product-body">
-          <div class="badges"></div>
+          <div class="badges product-badges"></div>
           <h3></h3>
           <div class="price"></div>
           <dl class="meta"></dl>

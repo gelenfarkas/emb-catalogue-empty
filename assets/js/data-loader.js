@@ -1,6 +1,6 @@
 import { appendVersion } from "./cache-utils.js";
 
-const { buildDatasetId, inferCategoryFromPath, normalizeDataset } = await import(appendVersion("./normalizer.js"));
+const { buildDatasetId, inferCategoryFromPath, normalizeDatasetAsync } = await import(appendVersion("./normalizer.js"));
 
 export async function loadFromManifest(manifestPath = "data/manifest.json", options = {}) {
   const debug = options.debug || null;
@@ -121,7 +121,7 @@ export async function loadFromFiles(fileList, options = {}) {
 
       const category = options.category || inferCategoryFromPath(relativePath);
       const normalizeStart = performance.now();
-      const normalized = normalizeDataset(
+      const normalized = await normalizeDatasetAsync(
         json,
         {
           id: buildDatasetId(relativePath),
@@ -180,7 +180,7 @@ async function loadDatasetEntry(entry, options, debug, metrics) {
     validateDatasetShape(json, datasetDebug);
 
     const normalizeStart = performance.now();
-    const normalized = normalizeDataset(
+    const normalized = await normalizeDatasetAsync(
       json,
       {
         id: entry.id || buildDatasetId(datasetPath),

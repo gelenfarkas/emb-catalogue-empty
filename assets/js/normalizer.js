@@ -13,6 +13,7 @@ const { estimateShipping } = await import(appendVersion("./shipping-estimator.js
 
 const categoryDetectionCache = new Map();
 const brandDetectionCache = new Map();
+const NORMALIZE_CHUNK_SIZE = 350;
 
 const CATEGORY_LABELS = {
   cipo: "Cipő",
@@ -29,6 +30,7 @@ const CATEGORY_LABELS = {
   noi_ruhak: "Női ruhák",
   sal: "Sál",
   nadrag: "Nadrág",
+  rovidnadrag: "Rövidnadrág",
   kabat: "Kabát",
   melleny: "Mellény",
   sapka: "Sapka",
@@ -36,6 +38,19 @@ const CATEGORY_LABELS = {
   pulcsi: "Pulóver",
   pulover: "Pulóver",
   furdoruha: "Fürdőruha",
+  fehernemu: "Fehérnemű",
+  borond: "Bőrönd / Poggyász",
+  poggyasz: "Bőrönd / Poggyász",
+  borond_poggyasz: "Bőrönd / Poggyász",
+  napszemuveg: "Napszemüveg",
+  szemuveg: "Szemüveg / Goggles",
+  goggles: "Szemüveg / Goggles",
+  ekszer: "Ékszer",
+  mez: "Mez",
+  gyerekruha: "Gyerekruha",
+  szett: "Szett / Ruhaszett",
+  ruhaszett: "Szett / Ruhaszett",
+  szett_ruhaszett: "Szett / Ruhaszett",
   ora: "Óra",
   watch: "Óra",
   ov: "Öv",
@@ -43,12 +58,58 @@ const CATEGORY_LABELS = {
   takaro: "Takaró / Pléd",
   pled: "Takaró / Pléd",
   blanket: "Takaró / Pléd",
+  haloruha: "Hálóruha / Pizsama",
+  pizsama: "Hálóruha / Pizsama",
+  haloruha_pizsama: "Hálóruha / Pizsama",
+  lego: "Lego / Építőjáték",
+  epitojatek: "Lego / Építőjáték",
+  lego_epitojatek: "Lego / Építőjáték",
   penztarca: "Pénztárca",
   wallet: "Pénztárca",
   kategorizalatlan: "Kategorizálatlan",
 };
 
 export function normalizeDataset(json, datasetInput, options = {}) {
+  const { dataset, items, affiliateUsername, root } = createDatasetContext(json, datasetInput, options);
+  const products = items
+    .map((item, index) =>
+      normalizeProduct(item, {
+        root,
+        dataset,
+        index,
+        affiliateUsername,
+      }),
+    )
+    .filter(Boolean);
+
+  dataset.itemCount = products.length;
+  return { dataset, products };
+}
+
+export async function normalizeDatasetAsync(json, datasetInput, options = {}) {
+  const { dataset, items, affiliateUsername, root } = createDatasetContext(json, datasetInput, options);
+  const products = [];
+  const chunkSize = Math.max(1, Number(options.normalizeChunkSize) || NORMALIZE_CHUNK_SIZE);
+
+  for (let start = 0; start < items.length; start += chunkSize) {
+    const chunk = items.slice(start, start + chunkSize);
+    for (let offset = 0; offset < chunk.length; offset += 1) {
+      const product = normalizeProduct(chunk[offset], {
+        root,
+        dataset,
+        index: start + offset,
+        affiliateUsername,
+      });
+      if (product) products.push(product);
+    }
+    if (start + chunkSize < items.length) await yieldToMain();
+  }
+
+  dataset.itemCount = products.length;
+  return { dataset, products };
+}
+
+function createDatasetContext(json, datasetInput, options = {}) {
   const root = json && typeof json === "object" ? json : {};
   const items = Array.isArray(root.items) ? root.items : [];
   const generatedAt = cleanText(root.generatedAt || datasetInput.generatedAt || "");
@@ -85,19 +146,7 @@ export function normalizeDataset(json, datasetInput, options = {}) {
     normalizeAffiliateUsername(dataset.meta.affiliateUsername) ||
     DEFAULT_AFFILIATE_USERNAME;
 
-  const products = items
-    .map((item, index) =>
-      normalizeProduct(item, {
-        root,
-        dataset,
-        index,
-        affiliateUsername,
-      }),
-    )
-    .filter(Boolean);
-
-  dataset.itemCount = products.length;
-  return { dataset, products };
+  return { dataset, items, affiliateUsername, root };
 }
 
 export function normalizeProduct(item, context) {
@@ -139,8 +188,20 @@ export function normalizeProduct(item, context) {
   const primaryCategoryNormalized = normalizeFilterValue(primaryCategory);
   const brandsNormalized = brands.map(normalizeFilterValue).filter(Boolean);
   const primaryBrandNormalized = normalizeFilterValue(primaryBrand);
-  const shippingEstimate = estimateShipping({ categoryIds, categories: allCategories });
   const source = cleanText(item.source || dataset.source || "unknown");
+  const searchIndex = buildSearchIndex({
+    title,
+    normalizedTitle,
+    itemId,
+    sellerName,
+    source,
+    brands,
+    autoCategories,
+    manualCategory,
+    manualCategories,
+    allCategories,
+  });
+  const shippingEstimate = estimateShipping({ categoryIds, categories: allCategories });
   const affiliateUrl =
     normalizeUrl(item.affiliateUrl) ||
     buildAffiliateUrl({
@@ -184,6 +245,7 @@ export function normalizeProduct(item, context) {
     primaryBrand,
     brandsNormalized,
     primaryBrandNormalized,
+    searchIndex,
     shippingEstimate,
     shippingEstimateHuf: shippingEstimate.dhlEstimateHuf,
     shippingEstimateLabel: shippingEstimate.displayHuf,
@@ -285,6 +347,18 @@ function mergeProduct(existing, incoming) {
   const primaryCategoryNormalized = normalizeFilterValue(primaryCategory);
   const brandsNormalized = brands.map(normalizeFilterValue).filter(Boolean);
   const primaryBrandNormalized = normalizeFilterValue(primaryBrand);
+  const searchIndex = buildSearchIndex({
+    title: better.title,
+    normalizedTitle: better.normalizedTitle,
+    itemId: better.itemId,
+    sellerName: better.sellerName,
+    source: better.source,
+    brands,
+    autoCategories,
+    manualCategory,
+    manualCategories,
+    allCategories,
+  });
   const categoryIds = unique([
     normalizeCategoryId(primaryCategory),
     ...manualCategories.map(normalizeCategoryId),
@@ -316,6 +390,7 @@ function mergeProduct(existing, incoming) {
     primaryBrand,
     brandsNormalized,
     primaryBrandNormalized,
+    searchIndex,
     shippingEstimate,
     shippingEstimateHuf: shippingEstimate.dhlEstimateHuf,
     shippingEstimateLabel: shippingEstimate.displayHuf,
@@ -378,6 +453,29 @@ function uniqueCategoryLabels(values) {
 
 function normalizeFilterValue(value) {
   return normalizeSearchText(value);
+}
+
+function buildSearchIndex(product) {
+  return normalizeSearchText([
+    product.title,
+    product.normalizedTitle,
+    product.itemId,
+    product.sellerName,
+    product.source,
+    ...(product.brands || []),
+    ...(product.autoCategories || []),
+    product.manualCategory,
+    ...(product.manualCategories || []),
+    ...(product.allCategories || []),
+  ].join(" "));
+}
+
+async function yieldToMain() {
+  if (typeof scheduler !== "undefined" && typeof scheduler.yield === "function") {
+    await scheduler.yield();
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function maxDate(a, b) {

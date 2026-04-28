@@ -4,6 +4,7 @@ const { DEFAULT_AFFILIATE_USERNAME, buildAffiliateUrl } = await import(appendVer
 
 export function renderProducts(container, products, template, options = {}) {
   container.textContent = "";
+  container.classList.remove("product-skeleton-grid", "is-loading");
   const fragment = document.createDocumentFragment();
   const mode = options.mode || "public";
 
@@ -34,23 +35,25 @@ export function renderProducts(container, products, template, options = {}) {
     imageLink.href = href;
     title.textContent = product.title;
 
-    const displayCategories = product.allCategories?.length
-      ? product.allCategories
-      : product.categories?.length
-        ? product.categories
-        : [product.categoryLabel || "Egyéb"];
     const displayBrands = unique([product.primaryBrand, ...(product.brands || [])]).slice(0, 3);
+    const displayAutoCategories = unique(product.autoCategories || []).slice(0, 3);
+    const hiddenAutoCategoryCount = Math.max(0, unique(product.autoCategories || []).length - displayAutoCategories.length);
+    const displayManualCategory = firstNonDuplicate(product.manualCategory, displayAutoCategories);
 
     for (const brand of displayBrands) {
       badges.appendChild(createBadge(brand, "badge--brand"));
     }
 
-    for (const category of displayCategories.slice(0, 4)) {
-      badges.appendChild(createBadge(category, category === product.manualCategory ? "badge--manual" : ""));
+    for (const category of displayAutoCategories) {
+      badges.appendChild(createBadge(category, "auto-category-badge", "Automatikusan felismert kategória"));
     }
 
-    if (displayCategories.length > 4) {
-      badges.appendChild(createBadge(`+${displayCategories.length - 4}`));
+    if (hiddenAutoCategoryCount > 0) {
+      badges.appendChild(createBadge(`+${hiddenAutoCategoryCount}`, "badge--more", "További automatikus kategória"));
+    }
+
+    if (displayManualCategory) {
+      badges.appendChild(createBadge(displayManualCategory, "manual-category-badge", "JSON alapján megadott kategória"));
     }
 
     if (product.datasetCount > 1) {
@@ -81,6 +84,36 @@ export function renderProducts(container, products, template, options = {}) {
     }
 
     fragment.appendChild(node);
+  }
+
+  container.appendChild(fragment);
+}
+
+export function renderProductSkeletons(container, count = 10) {
+  container.textContent = "";
+  container.classList.add("product-skeleton-grid");
+  container.classList.remove("is-loading");
+
+  const fragment = document.createDocumentFragment();
+  for (let index = 0; index < count; index += 1) {
+    const card = document.createElement("article");
+    card.className = "product-skeleton-card";
+    card.setAttribute("aria-hidden", "true");
+    card.innerHTML = `
+      <div class="skeleton-image"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-row">
+          <span class="skeleton-line skeleton-line--badge"></span>
+          <span class="skeleton-line skeleton-line--badge"></span>
+        </div>
+        <span class="skeleton-line skeleton-line--title"></span>
+        <span class="skeleton-line skeleton-line--title skeleton-line--short"></span>
+        <span class="skeleton-line skeleton-line--price"></span>
+        <span class="skeleton-line"></span>
+        <span class="skeleton-line skeleton-line--button"></span>
+      </div>
+    `;
+    fragment.appendChild(card);
   }
 
   container.appendChild(fragment);
@@ -238,11 +271,28 @@ async function copyToClipboard(text) {
   }
 }
 
-function createBadge(text, modifier = "") {
+function createBadge(text, modifier = "", title = "") {
   const badge = document.createElement("span");
   badge.className = modifier ? `badge ${modifier}` : "badge";
   badge.textContent = text;
+  if (title) badge.title = title;
   return badge;
+}
+
+function firstNonDuplicate(value, existingValues) {
+  const label = String(value || "").trim();
+  if (!label) return "";
+
+  const existing = new Set((existingValues || []).map((item) => normalizeDedupeKey(item)));
+  return existing.has(normalizeDedupeKey(label)) ? "" : label;
+}
+
+function normalizeDedupeKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function createMetaRow(label, value) {

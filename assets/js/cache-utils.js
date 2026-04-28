@@ -28,7 +28,7 @@ export function getLoadedStylesheetUrls() {
     .filter(Boolean);
 }
 
-export function logCacheDiagnostics({ page = "unknown", appScriptUrl = "", manifestUrl = "" } = {}) {
+export function logCacheDiagnostics({ page = "unknown", appScriptUrl = "", manifestUrl = "", cleanup = null } = {}) {
   console.info("[Cache] Diagnostics", {
     page,
     appVersion: APP_VERSION,
@@ -36,5 +36,9 @@ export function logCacheDiagnostics({ page = "unknown", appScriptUrl = "", manif
     appScriptUrl,
     manifestUrl,
     faviconUrl: document.querySelector('link[rel="icon"]')?.href || "",
+    serviceWorkersFound: cleanup?.registrationsFound ?? null,
+    serviceWorkersRemoved: cleanup?.registrationsRemoved ?? null,
+    cachesFound: cleanup?.cachesFound ?? null,
+    cachesDeleted: cleanup?.cachesDeleted ?? null,
   });
 }
